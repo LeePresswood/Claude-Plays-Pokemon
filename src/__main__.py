@@ -12,12 +12,14 @@ from src.emulator.capture import EmulatorCapture
 from src.emulator.input import EmulatorInput
 from src.agent.vision import ClaudeVision
 from src.agent.memory import GameMemory
+from src.agent.knowledge import KnowledgeBase
 from src.config import (
     ACTION_DELAY,
     MAX_ACTIONS_PER_SESSION,
     WARN_COST_THRESHOLD,
     LOG_DIR,
-    SAVE_SCREENSHOTS
+    SAVE_SCREENSHOTS,
+    USE_EXTENDED_THINKING
 )
 
 # Setup logging
@@ -44,8 +46,13 @@ class PokemonAgent:
         """
         self.capture = EmulatorCapture(window_title)
         self.input = EmulatorInput()
-        self.vision = ClaudeVision()
+        self.knowledge = KnowledgeBase()
+        self.vision = ClaudeVision(knowledge_base=self.knowledge)
         self.memory = GameMemory()
+
+        # Track stuck/unstuck states for learning
+        self.was_stuck = False
+        self.actions_while_stuck = []
 
         self.running = False
         self.screenshot_dir = LOG_DIR / "screenshots"
@@ -109,32 +116,86 @@ class PokemonAgent:
         if SAVE_SCREENSHOTS:
             screenshot_path = self.save_screenshot(screenshot, self.vision.get_action_count())
 
+        # Store screenshot hash for stuck detection
+        self.memory.add_screenshot_hash(screenshot)
+
+        # Check if stuck
+        is_stuck = self.memory.is_stuck()
+
         # Get recent history for context
         history = self.memory.get_recent_history_text()
+        recent_actions = list(self.memory.history)
 
-        # Get action from Claude
-        action = self.vision.get_action(screenshot, history)
+        # Handle stuck state transitions
+        if is_stuck and not self.was_stuck:
+            # Just became stuck - record it and analyze pattern
+            pattern = self.knowledge.analyze_stuck_pattern(recent_actions)
+            self.knowledge.record_stuck_state(pattern, recent_actions)
+            self.was_stuck = True
+            self.actions_while_stuck = []
+            logger.warning(f"Entered stuck state with pattern: {pattern}")
+
+        elif not is_stuck and self.was_stuck:
+            # Just became unstuck - learn from it!
+            if self.actions_while_stuck:
+                logger.info(f"Became unstuck after {len(self.actions_while_stuck)} actions")
+                self.knowledge.record_unstuck_success(self.actions_while_stuck)
+            self.was_stuck = False
+            self.actions_while_stuck = []
+
+        # Build stuck context with knowledge suggestions
+        stuck_context = None
+        if is_stuck:
+            stuck_context = self.memory.get_stuck_context()
+            # Add knowledge-based suggestions
+            suggestion = self.knowledge.get_suggestion_for_stuck_state(recent_actions)
+            if suggestion:
+                stuck_context += f"\n\n{suggestion}"
+
+        # Use extended thinking if stuck or enabled
+        if USE_EXTENDED_THINKING and is_stuck:
+            logger.warning("Detected stuck state - using extended thinking mode")
+            action = self.vision.get_action_with_thinking(screenshot, history, stuck_context)
+        else:
+            # Normal single-turn decision
+            action = self.vision.get_action(screenshot, history)
+
         if action is None:
             logger.error("Failed to get action from Claude")
             return False
 
-        button = action["button"]
+        buttons = action["buttons"]
         reasoning = action.get("reasoning", "No reasoning provided")
 
-        # Record the action
-        self.memory.add_action(button, reasoning, screenshot_path)
+        # Record the action (store as comma-separated string for compatibility)
+        button_str = ",".join(buttons) if len(buttons) > 1 else buttons[0]
+        self.memory.add_action(button_str, reasoning, screenshot_path)
 
-        # Execute button press
-        # Activate window before pressing button
-        self.capture.activate_window()
-        time.sleep(0.1)  # Small delay to ensure window is active
+        # Track actions while stuck for learning
+        if self.was_stuck:
+            self.actions_while_stuck.append({
+                "button": button_str,
+                "reasoning": reasoning
+            })
 
-        if not self.input.press_button(button):
-            logger.error(f"Failed to press button: {button}")
+        # Execute button sequence
+        # Activate window before pressing buttons
+        if not self.capture.activate_window():
+            logger.error("Failed to activate emulator window")
+            return False
+
+        # Longer delay to ensure window is truly focused and ready for input
+        time.sleep(0.3)
+
+        if not self.input.press_buttons(buttons):
+            logger.error(f"Failed to press buttons: {buttons}")
             return False
 
         # Log progress
-        logger.info(f"Action #{self.vision.get_action_count()}: {button} - {reasoning}")
+        if len(buttons) == 1:
+            logger.info(f"Action #{self.vision.get_action_count()}: {buttons[0]} - {reasoning}")
+        else:
+            logger.info(f"Action #{self.vision.get_action_count()}: {buttons} ({len(buttons)} buttons) - {reasoning}")
 
         return True
 
@@ -176,6 +237,8 @@ class PokemonAgent:
 
         # Print statistics
         stats = self.memory.get_stats()
+        knowledge_stats = self.knowledge.get_stats()
+
         logger.info("=" * 50)
         logger.info("SESSION STATISTICS")
         logger.info("=" * 50)
@@ -184,11 +247,17 @@ class PokemonAgent:
         logger.info(f"Actions per minute: {stats['actions_per_minute']:.1f}")
         logger.info(f"Estimated cost: ~${stats['total_actions'] / 1000:.2f}")
         logger.info(f"Button distribution: {stats['button_distribution']}")
+        logger.info("")
+        logger.info("LEARNING STATISTICS")
+        logger.info(f"Stuck states encountered: {knowledge_stats['total_stuck_states']}")
+        logger.info(f"Successfully unstuck: {knowledge_stats['total_unstuck_successes']}")
+        logger.info(f"Patterns learned: {knowledge_stats['patterns_learned']}")
         logger.info("=" * 50)
 
-        # Save session log
+        # Save session log and knowledge
         self.memory.save_session_log()
-        logger.info("Session log saved. Goodbye!")
+        self.knowledge.save_knowledge()
+        logger.info("Session log and knowledge base saved. Goodbye!")
 
 
 def main():

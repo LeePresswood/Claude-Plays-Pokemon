@@ -7,7 +7,7 @@ import base64
 import io
 import logging
 from typing import Optional, Dict, Any
-from src.config import ANTHROPIC_API_KEY, MODEL, MAX_TOKENS, VALID_BUTTONS
+from src.config import ANTHROPIC_API_KEY, MODEL, MAX_TOKENS, VALID_BUTTONS, MAX_BUTTONS_PER_RESPONSE, USE_EXTENDED_THINKING
 
 logger = logging.getLogger(__name__)
 
@@ -15,33 +15,48 @@ logger = logging.getLogger(__name__)
 class ClaudeVision:
     """Handles communication with Claude API for game decisions"""
 
-    def __init__(self):
-        """Initialize the Claude API client"""
+    def __init__(self, knowledge_base=None):
+        """
+        Initialize the Claude API client
+
+        Args:
+            knowledge_base: Optional KnowledgeBase instance for active learning
+        """
         self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         self.action_count = 0
+        self.knowledge_base = knowledge_base
 
         # System prompt that teaches Claude how to play Pokemon
-        self.system_prompt = """You are an AI playing Pokemon Red.
+        self.system_prompt = f"""You are an AI playing Pokemon Red.
 
 You will receive screenshots from the game. Your job is to:
 1. Analyze what you see on screen
-2. Decide what button to press next
-3. Respond with a SINGLE button press
+2. Decide what button(s) to press next
+3. Respond with 1-{MAX_BUTTONS_PER_RESPONSE} button presses
 
 Valid buttons: a, b, start, select, up, down, left, right
 
 Response format (JSON):
-{
-  "button": "a",
+{{
+  "buttons": ["up", "up", "up"],
+  "reasoning": "I see an open room. Moving north 3 steps to reach the door."
+}}
+
+For a single button:
+{{
+  "buttons": ["a"],
   "reasoning": "I see a dialog box, pressing A to advance the text"
-}
+}}
 
 Strategy tips:
+- You can plan ahead up to {MAX_BUTTONS_PER_RESPONSE} buttons when traversing open areas
 - Press A to confirm and advance dialog
 - Press B to cancel or go back
 - Use directional buttons to move and navigate menus
 - Press Start to open the menu
 - Press Select to switch items (in some contexts)
+- Use multi-button sequences for simple movement (walking across rooms)
+- Use single buttons for complex situations (battles, menus, dialog)
 
 Keep your reasoning brief. Focus on making progress in the game."""
 
@@ -75,9 +90,22 @@ Keep your reasoning brief. Focus on making progress in the game."""
             image_b64 = self.image_to_base64(screenshot)
 
             # Build message with context if available
-            user_message = "What button should I press next?"
+            message_parts = []
+
+            # Add learned knowledge if available
+            if self.knowledge_base:
+                knowledge_context = self.knowledge_base.get_context_for_prompt()
+                if knowledge_context:
+                    message_parts.append(knowledge_context)
+
+            # Add recent history
             if recent_history:
-                user_message = f"Recent actions:\n{recent_history}\n\nWhat button should I press next?"
+                message_parts.append(f"Recent actions:\n{recent_history}")
+
+            # Add question
+            message_parts.append("What button should I press next?")
+
+            user_message = "\n\n".join(message_parts)
 
             # Call Claude API
             message = self.client.messages.create(
@@ -118,14 +146,40 @@ Keep your reasoning brief. Focus on making progress in the game."""
                 logger.warning("Response not valid JSON, attempting to parse")
                 action_data = self._parse_text_response(response_text)
 
-            # Validate button
-            button = action_data.get("button", "").lower()
-            if button not in VALID_BUTTONS:
-                logger.error(f"Invalid button in response: {button}")
-                return None
+            # Normalize response format (support both old "button" and new "buttons" format)
+            buttons = action_data.get("buttons")
+            if buttons is None:
+                # Backward compatibility: convert single "button" to "buttons" list
+                single_button = action_data.get("button", "").lower()
+                if single_button:
+                    buttons = [single_button]
+                else:
+                    logger.error("No buttons in response")
+                    return None
 
-            self.action_count += 1
-            logger.info(f"Action #{self.action_count}: {button} - {action_data.get('reasoning', 'No reasoning provided')}")
+            # Ensure buttons is a list
+            if isinstance(buttons, str):
+                buttons = [buttons]
+
+            # Validate all buttons
+            buttons = [b.lower() for b in buttons]
+            for button in buttons:
+                if button not in VALID_BUTTONS:
+                    logger.error(f"Invalid button in response: {button}")
+                    return None
+
+            # Enforce max buttons limit
+            if len(buttons) > MAX_BUTTONS_PER_RESPONSE:
+                logger.warning(f"Response has {len(buttons)} buttons, truncating to {MAX_BUTTONS_PER_RESPONSE}")
+                buttons = buttons[:MAX_BUTTONS_PER_RESPONSE]
+
+            # Update action count (count each button press)
+            self.action_count += len(buttons)
+
+            # Update action_data with normalized buttons
+            action_data["buttons"] = buttons
+
+            logger.info(f"Action #{self.action_count}: {buttons} - {action_data.get('reasoning', 'No reasoning provided')}")
 
             return action_data
 
@@ -133,7 +187,7 @@ Keep your reasoning brief. Focus on making progress in the game."""
             logger.error(f"Error getting action from Claude: {e}")
             return None
 
-    def _parse_text_response(self, text: str) -> Dict[str, str]:
+    def _parse_text_response(self, text: str) -> Dict[str, Any]:
         """
         Fallback parser for non-JSON responses
 
@@ -141,23 +195,171 @@ Keep your reasoning brief. Focus on making progress in the game."""
             text: Response text from Claude
 
         Returns:
-            Dict with button and reasoning
+            Dict with buttons and reasoning
         """
-        # Look for button names in the text
+        # Look for button names in the text (check longer names first to avoid partial matches)
         text_lower = text.lower()
-        for button in VALID_BUTTONS:
-            if button in text_lower:
+        # Sort by length descending to match "start" and "select" before "a"
+        sorted_buttons = sorted(VALID_BUTTONS, key=len, reverse=True)
+        for button in sorted_buttons:
+            # Use word boundaries to avoid matching "a" in "advance"
+            import re
+            pattern = r'\b' + re.escape(button) + r'\b'
+            if re.search(pattern, text_lower):
                 return {
-                    "button": button,
+                    "buttons": [button],
                     "reasoning": text
                 }
 
         # Default fallback
         logger.warning("Could not parse button from response, defaulting to 'a'")
         return {
-            "button": "a",
+            "buttons": ["a"],
             "reasoning": text
         }
+
+    def get_action_with_thinking(
+        self,
+        screenshot: Image.Image,
+        recent_history: Optional[str] = None,
+        stuck_context: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get action with extended thinking - considers multiple options first
+
+        Args:
+            screenshot: PIL Image of current game state
+            recent_history: Optional string describing recent actions
+            stuck_context: Optional warning about being stuck
+
+        Returns:
+            Dict with 'buttons' and 'reasoning' keys, or None if error
+        """
+        try:
+            # Convert image to base64
+            image_b64 = self.image_to_base64(screenshot)
+
+            # Build context message
+            context_parts = []
+
+            # Add learned knowledge if available
+            if self.knowledge_base:
+                knowledge_context = self.knowledge_base.get_context_for_prompt()
+                if knowledge_context:
+                    context_parts.append(knowledge_context)
+
+            # Add recent history
+            if recent_history:
+                context_parts.append(f"Recent actions:\n{recent_history}")
+
+            # Add stuck context
+            if stuck_context:
+                context_parts.append(f"\n{stuck_context}")
+
+            context = "\n\n".join(context_parts) if context_parts else ""
+
+            # Multi-turn conversation for extended thinking
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": image_b64,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": f"""{context}
+
+Please analyze the situation carefully:
+1. What do you see on screen?
+2. What are 2-3 different options for what to do next?
+3. Which option is most likely to make progress?
+
+Think through each option before deciding."""
+                        }
+                    ],
+                }
+            ]
+
+            # First turn: Let Claude think through options
+            logger.info("Using extended thinking mode...")
+            thinking_response = self.client.messages.create(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=self.system_prompt,
+                messages=messages
+            )
+
+            thinking_text = thinking_response.content[0].text
+            logger.info(f"Claude's thinking: {thinking_text[:200]}...")
+
+            # Second turn: Ask for final decision
+            messages.append({
+                "role": "assistant",
+                "content": thinking_text
+            })
+            messages.append({
+                "role": "user",
+                "content": "Based on your analysis, what button(s) should I press? Respond in JSON format as specified."
+            })
+
+            decision_response = self.client.messages.create(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=self.system_prompt,
+                messages=messages
+            )
+
+            response_text = decision_response.content[0].text
+            logger.info(f"Claude decision: {response_text}")
+
+            # Parse and validate the response (same logic as get_action)
+            import json
+            try:
+                action_data = json.loads(response_text)
+            except json.JSONDecodeError:
+                logger.warning("Response not valid JSON, attempting to parse")
+                action_data = self._parse_text_response(response_text)
+
+            # Normalize response format
+            buttons = action_data.get("buttons")
+            if buttons is None:
+                single_button = action_data.get("button", "").lower()
+                if single_button:
+                    buttons = [single_button]
+                else:
+                    logger.error("No buttons in response")
+                    return None
+
+            if isinstance(buttons, str):
+                buttons = [buttons]
+
+            buttons = [b.lower() for b in buttons]
+            for button in buttons:
+                if button not in VALID_BUTTONS:
+                    logger.error(f"Invalid button in response: {button}")
+                    return None
+
+            if len(buttons) > MAX_BUTTONS_PER_RESPONSE:
+                logger.warning(f"Response has {len(buttons)} buttons, truncating to {MAX_BUTTONS_PER_RESPONSE}")
+                buttons = buttons[:MAX_BUTTONS_PER_RESPONSE]
+
+            self.action_count += len(buttons)
+            action_data["buttons"] = buttons
+            action_data["thinking"] = thinking_text  # Include the thinking process
+
+            logger.info(f"Action #{self.action_count}: {buttons} - {action_data.get('reasoning', 'No reasoning provided')}")
+
+            return action_data
+
+        except Exception as e:
+            logger.error(f"Error in extended thinking mode: {e}")
+            return None
 
     def get_action_count(self) -> int:
         """Get the number of actions taken this session"""

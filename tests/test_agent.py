@@ -20,7 +20,7 @@ class TestClaudeVision:
             # Mock API response
             mock_client = Mock()
             mock_message = Mock()
-            mock_message.content = [Mock(text='{"button": "a", "reasoning": "Advancing dialog"}')]
+            mock_message.content = [Mock(text='{"buttons": ["a"], "reasoning": "Advancing dialog"}')]
             mock_client.messages.create.return_value = mock_message
             mock_anthropic.return_value = mock_client
 
@@ -29,7 +29,7 @@ class TestClaudeVision:
             result = vision.get_action(screenshot)
 
             assert result is not None
-            assert result["button"] == "a"
+            assert result["buttons"] == ["a"]
             assert "reasoning" in result
             assert vision.get_action_count() == 1
 
@@ -40,7 +40,7 @@ class TestClaudeVision:
         with patch('src.agent.vision.anthropic.Anthropic') as mock_anthropic:
             mock_client = Mock()
             mock_message = Mock()
-            mock_message.content = [Mock(text='{"button": "invalid", "reasoning": "Test"}')]
+            mock_message.content = [Mock(text='{"buttons": ["invalid"], "reasoning": "Test"}')]
             mock_client.messages.create.return_value = mock_message
             mock_anthropic.return_value = mock_client
 
@@ -57,7 +57,7 @@ class TestClaudeVision:
         with patch('src.agent.vision.anthropic.Anthropic') as mock_anthropic:
             mock_client = Mock()
             mock_message = Mock()
-            mock_message.content = [Mock(text='{"button": "up", "reasoning": "Moving north"}')]
+            mock_message.content = [Mock(text='{"buttons": ["up"], "reasoning": "Moving north"}')]
             mock_client.messages.create.return_value = mock_message
             mock_anthropic.return_value = mock_client
 
@@ -70,7 +70,9 @@ class TestClaudeVision:
             assert result is not None
             # Verify history was passed to API
             call_args = mock_client.messages.create.call_args
-            assert history in str(call_args)
+            # Check that the key parts of history are in the call
+            assert "Pressed a: Advanced dialog" in str(call_args)
+            assert "Pressed b: Closed menu" in str(call_args)
 
     def test_image_to_base64(self):
         """Should convert PIL Image to base64 string"""
@@ -91,8 +93,85 @@ class TestClaudeVision:
         text = "I think we should press the up button to move forward"
         result = vision._parse_text_response(text)
 
-        assert result["button"] == "up"
+        assert result["buttons"] == ["up"]
         assert result["reasoning"] == text
+
+    def test_get_action_multiple_buttons(self):
+        """Should parse response with multiple buttons"""
+        from src.agent.vision import ClaudeVision
+
+        with patch('src.agent.vision.anthropic.Anthropic') as mock_anthropic:
+            mock_client = Mock()
+            mock_message = Mock()
+            mock_message.content = [Mock(text='{"buttons": ["up", "up", "up"], "reasoning": "Walking north"}')]
+            mock_client.messages.create.return_value = mock_message
+            mock_anthropic.return_value = mock_client
+
+            vision = ClaudeVision()
+            screenshot = Image.new('RGB', (160, 144))
+            result = vision.get_action(screenshot)
+
+            assert result is not None
+            assert result["buttons"] == ["up", "up", "up"]
+            assert vision.get_action_count() == 3  # Should count each button
+
+    def test_get_action_backward_compatibility(self):
+        """Should support old single 'button' format"""
+        from src.agent.vision import ClaudeVision
+
+        with patch('src.agent.vision.anthropic.Anthropic') as mock_anthropic:
+            mock_client = Mock()
+            mock_message = Mock()
+            mock_message.content = [Mock(text='{"button": "a", "reasoning": "Legacy format"}')]
+            mock_client.messages.create.return_value = mock_message
+            mock_anthropic.return_value = mock_client
+
+            vision = ClaudeVision()
+            screenshot = Image.new('RGB', (160, 144))
+            result = vision.get_action(screenshot)
+
+            assert result is not None
+            assert result["buttons"] == ["a"]  # Should convert to list
+            assert vision.get_action_count() == 1
+
+    def test_get_action_max_buttons_limit(self):
+        """Should enforce max buttons per response limit"""
+        from src.agent.vision import ClaudeVision
+        from src.config import MAX_BUTTONS_PER_RESPONSE
+
+        with patch('src.agent.vision.anthropic.Anthropic') as mock_anthropic:
+            mock_client = Mock()
+            mock_message = Mock()
+            # Create a response with more than MAX_BUTTONS_PER_RESPONSE buttons
+            many_buttons = ["up"] * (MAX_BUTTONS_PER_RESPONSE + 5)
+            mock_message.content = [Mock(text=json.dumps({"buttons": many_buttons, "reasoning": "Too many"}))]
+            mock_client.messages.create.return_value = mock_message
+            mock_anthropic.return_value = mock_client
+
+            vision = ClaudeVision()
+            screenshot = Image.new('RGB', (160, 144))
+            result = vision.get_action(screenshot)
+
+            assert result is not None
+            assert len(result["buttons"]) == MAX_BUTTONS_PER_RESPONSE  # Should truncate
+            assert vision.get_action_count() == MAX_BUTTONS_PER_RESPONSE
+
+    def test_get_action_invalid_button_in_sequence(self):
+        """Should reject sequence with any invalid button"""
+        from src.agent.vision import ClaudeVision
+
+        with patch('src.agent.vision.anthropic.Anthropic') as mock_anthropic:
+            mock_client = Mock()
+            mock_message = Mock()
+            mock_message.content = [Mock(text='{"buttons": ["up", "invalid", "down"], "reasoning": "Bad button"}')]
+            mock_client.messages.create.return_value = mock_message
+            mock_anthropic.return_value = mock_client
+
+            vision = ClaudeVision()
+            screenshot = Image.new('RGB', (160, 144))
+            result = vision.get_action(screenshot)
+
+            assert result is None  # Should reject entire sequence
 
 
 class TestGameMemory:
@@ -174,3 +253,63 @@ class TestGameMemory:
             assert new_memory.session_log[0]["button"] == "a"
         finally:
             temp_path.unlink(missing_ok=True)
+
+    def test_stuck_detection_with_similar_images(self):
+        """Should detect stuck state when screenshots are similar"""
+        from src.agent.memory import GameMemory
+        from PIL import Image
+
+        memory = GameMemory()
+
+        # Create similar images (same color)
+        for _ in range(4):
+            img = Image.new('RGB', (160, 144), color='blue')
+            memory.add_screenshot_hash(img)
+
+        assert memory.is_stuck() is True
+
+    def test_stuck_detection_with_different_images(self):
+        """Should not detect stuck when screenshots are different"""
+        from src.agent.memory import GameMemory
+        from PIL import Image, ImageDraw
+
+        memory = GameMemory()
+
+        # Create visually different images (solid colors are too similar for pHash)
+        for i in range(4):
+            img = Image.new('RGB', (160, 144), color='white')
+            draw = ImageDraw.Draw(img)
+            # Draw different patterns to make them distinct
+            draw.rectangle([i*40, i*36, (i+1)*40, (i+1)*36], fill='black')
+            memory.add_screenshot_hash(img)
+
+        assert memory.is_stuck() is False
+
+    def test_stuck_detection_not_enough_history(self):
+        """Should not detect stuck with insufficient history"""
+        from src.agent.memory import GameMemory
+        from PIL import Image
+
+        memory = GameMemory()
+
+        # Only 2 screenshots (less than stuck_threshold of 3)
+        for _ in range(2):
+            img = Image.new('RGB', (160, 144), color='blue')
+            memory.add_screenshot_hash(img)
+
+        assert memory.is_stuck() is False
+
+    def test_get_stuck_context(self):
+        """Should provide helpful context when stuck"""
+        from src.agent.memory import GameMemory
+
+        memory = GameMemory()
+        memory.add_action("up", "Moving north")
+        memory.add_action("up", "Still moving north")
+        memory.add_action("up", "Trying to move north again")
+
+        context = memory.get_stuck_context()
+
+        assert "stuck" in context.lower()
+        assert "up" in context
+        assert "different" in context.lower()

@@ -2,10 +2,11 @@
 Screenshot capture from emulator window
 """
 import pyautogui
-from PIL import Image
+from PIL import Image, ImageGrab
 import pygetwindow as gw
 from typing import Optional
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,8 @@ class EmulatorCapture:
         """
         Capture a screenshot of the emulator window
 
+        Uses ImageGrab on Windows which handles DPI scaling better than pyautogui
+
         Returns:
             PIL Image object or None if capture failed
         """
@@ -55,13 +58,37 @@ class EmulatorCapture:
             return None
 
         try:
-            # Get window position and size
-            left, top = self.window.left, self.window.top
-            width, height = self.window.width, self.window.height
+            # Activate window to bring it to front
+            self.activate_window()
 
-            # Capture the region
-            screenshot = pyautogui.screenshot(region=(left, top, width, height))
-            logger.debug(f"Captured screenshot: {width}x{height}")
+            # Small delay to let window activate
+            import time
+            time.sleep(0.1)
+
+            # Refresh window object to get current position (in case it moved during activation)
+            if not self.find_window():
+                logger.error("Lost window reference after activation")
+                return None
+
+            # Get window bounds (fresh after activation)
+            # self.window is guaranteed to be non-None here because find_window() returned True
+            assert self.window is not None
+            left = self.window.left
+            top = self.window.top
+            right = left + self.window.width
+            bottom = top + self.window.height
+
+            logger.debug(f"Capturing window '{self.window.title}' at ({left}, {top}, {right}, {bottom})")
+
+            # Use ImageGrab on Windows (handles DPI better)
+            if sys.platform == 'win32':
+                screenshot = ImageGrab.grab(bbox=(left, top, right, bottom))
+                logger.debug(f"Captured screenshot with ImageGrab: {screenshot.size}")
+            else:
+                # Fallback to pyautogui for other platforms
+                screenshot = pyautogui.screenshot(region=(left, top, self.window.width, self.window.height))
+                logger.debug(f"Captured screenshot with pyautogui: {screenshot.size}")
+
             return screenshot
 
         except Exception as e:
@@ -79,7 +106,39 @@ class EmulatorCapture:
             return False
 
         try:
+            # First try to restore if minimized
+            if self.window.isMinimized:
+                self.window.restore()
+                import time
+                time.sleep(0.1)
+
+            # Then activate
             self.window.activate()
+
+            # On Windows, sometimes we need to be more aggressive
+            if sys.platform == 'win32':
+                try:
+                    import win32gui
+                    import win32con
+
+                    # Use the window handle from pygetwindow instead of FindWindow
+                    # pygetwindow stores the handle in _hWnd
+                    if hasattr(self.window, '_hWnd'):
+                        hwnd = self.window._hWnd
+
+                        # Show and restore window if needed
+                        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+
+                        # Bring to top and set focus
+                        win32gui.SetForegroundWindow(hwnd)
+                        win32gui.SetFocus(hwnd)
+
+                        logger.debug(f"Activated window using win32gui (hwnd={hwnd}): {self.window.title}")
+                    else:
+                        logger.debug("Could not get window handle (_hWnd)")
+                except Exception as win32_error:
+                    logger.debug(f"win32gui activation failed (non-critical): {win32_error}")
+
             logger.debug("Activated emulator window")
             return True
         except Exception as e:

@@ -5,7 +5,7 @@ import pyautogui
 import time
 import logging
 from typing import List
-from src.config import BUTTON_PRESS_DURATION, VALID_BUTTONS
+from src.config import BUTTON_PRESS_DURATION, VALID_BUTTONS, BUTTON_SEQUENCE_DELAY
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,10 @@ class EmulatorInput:
 
         try:
             key = self.BUTTON_MAP[button]
-            pyautogui.press(key, interval=duration)
+            # Use keyDown/keyUp for better control instead of press()
+            pyautogui.keyDown(key)
+            time.sleep(duration)
+            pyautogui.keyUp(key)
             logger.info(f"Pressed button: {button} (key: {key})")
             return True
 
@@ -58,21 +61,29 @@ class EmulatorInput:
             logger.error(f"Error pressing button {button}: {e}")
             return False
 
-    def press_buttons(self, buttons: List[str]) -> bool:
+    def press_buttons(self, buttons: List[str], delay: float = None) -> bool:
         """
-        Press a sequence of buttons
+        Press a sequence of buttons with configurable delay
 
         Args:
             buttons: List of button names to press in order
+            delay: Delay between button presses (defaults to BUTTON_SEQUENCE_DELAY)
 
         Returns:
             True if all successful, False otherwise
         """
+        if delay is None:
+            delay = BUTTON_SEQUENCE_DELAY
+
         success = True
-        for button in buttons:
+        for i, button in enumerate(buttons):
             if not self.press_button(button):
                 success = False
-            time.sleep(0.1)  # Small delay between button presses
+                break
+
+            # Add delay between buttons (but not after the last one)
+            if i < len(buttons) - 1:
+                time.sleep(delay)
 
         return success
 

@@ -181,6 +181,11 @@ test_screenshot.png
 logs/
 *.log
 
+# Knowledge base (learned data - gitignore runtime, keep examples)
+knowledge/learned.json
+!knowledge/seed_example.json
+!knowledge/README.md
+
 # Jupyter notebook artifacts
 .ipynb_checkpoints/
 */.ipynb_checkpoints/

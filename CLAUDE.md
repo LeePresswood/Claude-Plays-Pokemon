@@ -30,7 +30,8 @@ claude-plays-pokemon/
 │   ├── config.py        # Configuration and environment variables
 │   ├── agent/
 │   │   ├── vision.py    # Claude API integration
-│   │   └── memory.py    # Game history tracking
+│   │   ├── memory.py    # Game history tracking
+│   │   └── knowledge.py # Active learning / knowledge base
 │   └── emulator/
 │       ├── capture.py   # Screenshot capture (pyautogui + pygetwindow)
 │       └── input.py     # Keyboard automation
@@ -44,6 +45,10 @@ claude-plays-pokemon/
 │   └── playthrough/     # Highlights, visualizations
 ├── prompts/
 │   └── town-descriptions/  # Strategic context for Claude
+├── knowledge/           # Active learning knowledge base
+│   ├── README.md        # Knowledge system documentation
+│   ├── seed_example.json # Example seeded knowledge
+│   └── learned.json     # Auto-generated (gitignored)
 └── logs/                # Session logs and screenshots (gitignored)
 ```
 
@@ -116,6 +121,101 @@ Window title must contain "mGBA" by default (configurable in src/__main__.py).
 Default mapping: Z=A, X=B, Enter=Start, Backspace=Select
 
 **Change mappings here** if using different emulator or keyboard layout.
+
+### src/agent/knowledge.py
+**Active Learning System** - The AI learns from experience and improves across sessions.
+
+**Key Functions**:
+- `KnowledgeBase.analyze_stuck_pattern()` - Detects stuck patterns (repeated buttons, walking into walls)
+- `KnowledgeBase.record_stuck_state()` - Records when AI gets stuck
+- `KnowledgeBase.record_unstuck_success()` - Learns from successful unstuck sequences
+- `KnowledgeBase.get_suggestion_for_stuck_state()` - Provides learned solutions
+
+**Knowledge persistence**: `knowledge/learned.json` (auto-generated, gitignored)
+
+## Active Learning System
+
+The AI now learns from experience and improves gameplay across sessions using pattern recognition and knowledge persistence.
+
+### How It Works
+
+**1. Stuck Detection**
+- Uses perceptual image hashing to detect same screen 3+ times
+- Triggers extended thinking mode when stuck
+
+**2. Pattern Analysis**
+- `repeated_a_button` - Pressing A repeatedly (5+ times)
+- `multiple_a_presses` - Multiple A without progress (3+ in last 5 actions)
+- `repeated_[direction]_movement` - Walking into obstacle (3+ same direction)
+- `alternating_X_and_Y` - Alternating between two buttons
+
+**3. Extended Thinking When Stuck**
+- Multi-turn reasoning: Analyze → Consider options → Decide
+- Learned solutions are suggested in the prompt
+
+**4. Learning from Success**
+When the AI becomes unstuck:
+1. Records the pattern that caused stuck state
+2. Records the action sequence that unstuck it
+3. Calculates success rate for this pattern
+4. Saves to `knowledge/learned.json`
+
+**5. Knowledge Integration**
+On future runs:
+- Loads learned knowledge from previous sessions
+- Includes tips in Claude's prompt
+- Suggests known solutions when similar patterns detected
+- Continuously builds knowledge base
+
+### Seeding Knowledge Manually
+
+You can jumpstart the AI with your own tips:
+
+```bash
+# Copy example to create learned knowledge
+copy knowledge\seed_example.json knowledge\learned.json
+
+# Edit knowledge/learned.json to add tips
+```
+
+**Example knowledge structure:**
+```json
+{
+  "general_tips": [
+    "B button exits menus and PC screens",
+    "If stuck after multiple A presses, try moving instead"
+  ],
+  "stuck_patterns": {
+    "multiple_a_presses": {
+      "description": "Multiple A presses without progress",
+      "successful_solutions": ["b", "down", "left"],
+      "times_encountered": 5,
+      "total_successes": 4,
+      "success_rate": 80.0
+    }
+  }
+}
+```
+
+### Session Statistics
+
+After each run, you'll see learning stats:
+```
+LEARNING STATISTICS
+Stuck states encountered: 3
+Successfully unstuck: 2
+Patterns learned: 1
+```
+
+### Benefits
+
+1. **Faster unstucking** - Recognizes patterns and applies known solutions
+2. **Continuous improvement** - Each session teaches the AI
+3. **User-seedable** - You can add domain knowledge manually
+4. **Cost reduction** - Fewer wasted actions on repeated failures
+5. **Transparent** - All learned knowledge is human-readable JSON
+
+See `knowledge/README.md` for detailed documentation.
 
 ## Code Style & Conventions
 

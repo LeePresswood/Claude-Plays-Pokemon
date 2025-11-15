@@ -1,0 +1,62 @@
+{
+  "version": "1.0",
+  "last_updated": null,
+  "general_tips": [
+    "If you see a menu or PC screen that won't close with A, try pressing B to cancel",
+    "If stuck after multiple A presses, try moving in a direction (up/down/left/right)",
+    "The START button opens the main menu, which can help diagnose the game state",
+    "PC screens in Pokemon Centers are for storage - B exits them",
+    "When facing a wall and movement buttons don't work, turn around or try a different direction",
+    "In battles, A confirms moves and B backs out of menus",
+    "If you're in a building and can't move, look for doors (darker rectangles) and walk through them"
+  ],
+  "stuck_patterns": {
+    "multiple_a_presses": {
+      "description": "Multiple A presses without progress",
+      "successful_solutions": [
+        "b",
+        "down",
+        "left"
+      ],
+      "times_encountered": 0,
+      "total_successes": 0,
+      "success_rate": 0
+    },
+    "repeated_up_movement": {
+      "description": "Moving up repeatedly into obstacle",
+      "successful_solutions": [
+        "left",
+        "right",
+        "down"
+      ],
+      "times_encountered": 0,
+      "total_successes": 0,
+      "success_rate": 0
+    }
+  },
+  "location_specific": {
+    "pokemon_center": {
+      "tips": [
+        "PC is on the right side - walk up to it and press A to interact",
+        "Press B to exit PC menus",
+        "Nurse is at the counter - talk to her to heal"
+      ],
+      "common_issues": [
+        "Getting stuck in PC menu - press B to exit"
+      ]
+    },
+    "pallet_town": {
+      "tips": [
+        "Player's house is bottom-left",
+        "Rival's house is bottom-right",
+        "Oak's lab is at the top",
+        "Exit to Route 1 is at the top of town"
+      ]
+    }
+  },
+  "stats": {
+    "total_stuck_states": 0,
+    "total_unstuck_successes": 0,
+    "patterns_learned": 0
+  }
+}
