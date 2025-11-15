@@ -131,24 +131,324 @@ Default mapping: Z=A, X=B, Enter=Start, Backspace=Select
 
 ## Testing
 
-### Manual Testing
-1. Run `python test_setup.py` to validate:
-   - API key configured
-   - Emulator window detected
-   - Screenshots captured
-   - Button presses work
+**This project uses Test-Driven Development (TDD).** Write tests first, then implement features to pass them. This approach ensures clear requirements, verifiable behavior, and confidence in changes.
 
-2. Run main loop with low `MAX_ACTIONS_PER_SESSION` to test changes
+### Philosophy: Why Tests Make Claude More Effective
+
+**Claude performs best when it has a clear target to iterate against.** Tests provide:
+
+- **Objective pass/fail criteria** - No ambiguity about "done"
+- **Immediate feedback** - Run tests, see results, adjust
+- **Incremental improvement** - Keep iterating until success
+- **Protection from overfitting** - Tests catch implementation shortcuts
+
+Instead of vague requirements like "make it detect stuck states", tests give concrete expectations:
+```python
+assert memory.is_stuck() is True  # When same button 5+ times
+assert memory.is_stuck() is False  # When varied buttons
+```
+
+This allows Claude to:
+1. Write code
+2. Run tests
+3. See what failed
+4. Adjust code
+5. Repeat until all pass
+
+### Quick Testing Commands
+
+```bash
+# Run all tests
+pytest
+
+# Run specific test file
+pytest tests/test_agent.py
+
+# Run specific test
+pytest tests/test_agent.py::TestGameMemory::test_add_action
+
+# Run with coverage
+pytest --cov=src --cov-report=html
+# Open htmlcov/index.html to see coverage report
+
+# Run and stop on first failure
+pytest -x
+
+# Run in verbose mode
+pytest -v
+
+# Run tests matching pattern
+pytest -k "stuck"
+
+# Watch for changes and re-run tests
+pytest-watch
+```
+
+### TDD Workflow
+
+#### 1. Write Tests First
+
+Before implementing any feature, create or edit test files:
+
+```bash
+# tests/test_<module>.py
+# Write tests based on expected input/output pairs
+# Be explicit about expected behavior
+# Don't mock what doesn't exist yet
+```
+
+**Example**:
+```python
+def test_detect_stuck_state():
+    """Should detect when player is stuck (repeated same action 5+ times)"""
+    from src.agent.memory import GameMemory
+
+    memory = GameMemory()
+    # Simulate stuck state: pressing 'up' 5 times
+    for _ in range(5):
+        memory.add_action("up", "Moving north")
+
+    assert memory.is_stuck() is True
+```
+
+#### 2. Run Tests (Should Fail)
+
+```bash
+# Activate venv first
+.\venv\Scripts\activate  # Windows
+source venv/bin/activate  # Mac/Linux
+
+# Run tests - they should FAIL
+pytest tests/test_agent.py::test_detect_stuck_state -v
+
+# Expected output:
+# FAILED - AttributeError: 'GameMemory' object has no attribute 'is_stuck'
+```
+
+**This confirms the test is working and the feature doesn't exist yet.**
+
+#### 3. Commit the Tests
+
+```bash
+git add tests/test_agent.py
+git commit -m "Add test for stuck state detection"
+```
+
+#### 4. Implement Code
+
+**Ask Claude to implement the feature to pass the tests:**
+
+> "Now implement the is_stuck() method in src/agent/memory.py to pass the tests. Don't modify the tests. Keep iterating until all tests pass."
+
+Claude will write code like:
+
+```python
+# In src/agent/memory.py
+def is_stuck(self, threshold: int = 5) -> bool:
+    """Detect if player is stuck (repeated same action)"""
+    if len(self.history) < threshold:
+        return False
+
+    recent_buttons = [action["button"] for action in list(self.history)[-threshold:]]
+    return len(set(recent_buttons)) == 1  # All same button
+```
+
+#### 5. Iterate Until Tests Pass
+
+**Claude will run tests and make adjustments:**
+
+```bash
+pytest tests/test_agent.py::test_detect_stuck_state -v
+# FAILED - edge case not handled
+
+# Claude adjusts code...
+pytest tests/test_agent.py::test_detect_stuck_state -v
+# PASSED!
+```
+
+**Key point**: Claude has a clear target (passing tests) to iterate against. This is much more effective than vague requirements.
+
+#### 6. Verify with Subagent (Optional)
+
+For complex features, ask Claude to verify the implementation independently:
+
+> "Review the stuck state detection code independently. Does it:
+> 1. Correctly identify stuck states?
+> 2. Handle edge cases (empty history, threshold boundary)?
+> 3. Avoid overfitting to the test cases?"
+
+This catches issues where the implementation might work for the specific test but fail in real usage.
+
+#### 7. Run Full Test Suite
+
+```bash
+# Run all tests to ensure nothing broke
+pytest
+
+# With coverage report
+pytest --cov=src --cov-report=term-missing
+```
+
+#### 8. Commit the Implementation
+
+**Once satisfied, ask Claude to commit:**
+
+> "The tests pass and the implementation looks good. Please commit the code."
+
+```bash
+git add src/agent/memory.py
+git commit -m "Implement stuck state detection
+
+- Detects when player presses same button 5+ times
+- Handles edge cases for empty/short history
+- Tests verify behavior"
+```
+
+### Working with Claude: Example Prompts
+
+#### Writing Tests
+
+**Good prompt**:
+> "I want to add a feature to auto-save checkpoints every 100 actions. Write unit tests for this using TDD. Don't implement the feature yet, just write comprehensive tests that verify:
+> 1. Checkpoint is saved at action 100, 200, 300, etc.
+> 2. Checkpoint includes action count, timestamp, and recent history
+> 3. Checkpoint files are named with timestamp
+> 4. Old checkpoints beyond the last 5 are deleted
+>
+> Make sure the tests will fail right now since the feature doesn't exist."
+
+**Why it works**: Specific requirements, explicit about TDD, tells Claude not to implement yet.
+
+#### Implementing Code
+
+**Good prompt**:
+> "Now implement the auto_save_checkpoint() method to pass all the tests. Don't modify the tests. Keep running the tests and iterating on your code until all tests pass. Tell me when you're done and show me the test results."
+
+**Why it works**: Clear target (pass tests), explicit not to change tests, asks for iteration.
+
+#### Verification
+
+**Good prompt**:
+> "The tests pass. Now review the implementation as an independent reviewer. Could the code fail in ways the tests don't cover? Are there edge cases we should add tests for?"
+
+**Why it works**: Asks for critical review, catches overfitting.
+
+#### Committing
+
+**Good prompt**:
+> "Great! The implementation looks solid. Please commit both the tests and the implementation with appropriate commit messages."
+
+**Why it works**: Clear instruction to finalize the work.
+
+### Writing Good Tests
+
+#### DO
+
+✅ **Test behavior, not implementation**
+```python
+def test_captures_screenshot():
+    """Should return PIL Image when window found"""
+    # Tests the what, not the how
+```
+
+✅ **Use descriptive names**
+```python
+def test_rejects_invalid_button_names():
+    """Clear what's being tested"""
+```
+
+✅ **Test edge cases**
+```python
+def test_empty_history():
+def test_single_action():
+def test_max_history_boundary():
+```
+
+✅ **Mock external dependencies**
+```python
+@patch('src.emulator.capture.pyautogui.screenshot')
+def test_screenshot(mock_screenshot):
+    # Don't actually take screenshots in tests
+```
+
+#### DON'T
+
+❌ **Test implementation details**
+```python
+def test_internal_variable_name():
+    # Too brittle
+```
+
+❌ **Write tests after code**
+```python
+# Defeats the purpose of TDD
+```
+
+❌ **Mock things that don't exist**
+```python
+# Write the test for real behavior first
+```
+
+❌ **Have tests depend on each other**
+```python
+# Each test should be independent
+```
+
+### Test Structure
+
+```
+tests/
+├── __init__.py
+├── test_setup.py       # Integration test for setup
+├── test_emulator.py    # Unit tests for emulator
+├── test_agent.py       # Unit tests for agent
+└── test_integration.py # End-to-end tests (future)
+```
+
+### Coverage Goals
+
+- Aim for **>80% code coverage**
+- Focus on **critical paths** (agent decisions, emulator integration)
+- Don't test trivial code (getters/setters)
+- Test **happy paths** and **error cases**
+
+Check coverage:
+```bash
+pytest --cov=src --cov-report=term-missing
+```
+
+### Manual Testing
+
+1. **Setup validation**: `python -m tests.test_setup`
+2. **Integration test**: Run with low `MAX_ACTIONS_PER_SESSION`
 
 ### What to Test Before Committing
-- Setup script creates venv and .env successfully
-- Config loads without errors
-- API key validation works (try invalid key)
-- Emulator window detection (try wrong title)
-- Screenshot capture quality
-- Button press execution
+
+- All unit tests pass (`pytest`)
+- Coverage >80% for new code
+- Setup script works (`python setup.py`)
+- Integration test runs (`python -m src` with emulator)
+
+### Benefits
+
+- **Confidence**: Tests prove features work
+- **Regression Prevention**: Changes don't break existing features
+- **Documentation**: Tests show how code should be used
+- **Faster Debugging**: Failing tests pinpoint issues
+- **Better Design**: Writing tests first leads to better APIs
+
+---
+
+**Remember**: Tests are your target. Give Claude a clear target to iterate against, and it will keep improving until it succeeds.
 
 ## Repository Etiquette
+
+### Documentation Organization Rule
+
+**Avoid creating new top-level documentation or ruleset files.** Keep the root directory clean:
+- Consolidate related documentation into existing files (like this CLAUDE.md)
+- If new documentation is needed, organize it in subdirectories (e.g., `docs/`, `prompts/`)
+- Exception: Core project files (README.md, QUICKSTART.md, setup.py, requirements.txt)
 
 ### Branching
 - `main` is stable
