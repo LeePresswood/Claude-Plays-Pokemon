@@ -177,9 +177,22 @@ env/
 # Test screenshots
 test_screenshot.png
 
-# Logs and session data
+# Logs and session data (runtime artifacts - never commit)
 logs/
 *.log
+
+# Jupyter notebook artifacts
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# Notebook outputs with embedded images (can bloat repo)
+# Note: Curated highlights should be cleaned and committed
+# All other notebooks should have outputs cleared before commit
+
+# Python test coverage
+htmlcov/
+.coverage
+.pytest_cache/
 
 # IDE
 .vscode/

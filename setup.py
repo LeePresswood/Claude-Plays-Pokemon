@@ -66,6 +66,16 @@ def main():
     else:
         print("\nWarning: .env.example not found, skipping .env creation")
 
+    # Create runtime directories (gitignored - for local data only)
+    print("\nCreating runtime directories...")
+    logs_dir = project_dir / "logs"
+    screenshots_dir = logs_dir / "screenshots"
+
+    logs_dir.mkdir(exist_ok=True)
+    screenshots_dir.mkdir(exist_ok=True)
+    print("✓ Created logs/ and logs/screenshots/")
+    print("  → Runtime data (logs, screenshots) stored here (gitignored)")
+
     # Success message
     print("\nSetup complete!")
     print(f"\nNext steps:")

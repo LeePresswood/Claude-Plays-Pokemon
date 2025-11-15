@@ -554,7 +554,10 @@ notebooks/
 │   └── vision_api_test.ipynb   # Test API with sample screenshots
 └── playthrough/
     ├── highlights.ipynb         # Curated moments from runs
-    └── battle_analysis.ipynb    # Type matchups, move choices
+    ├── battle_analysis.ipynb    # Type matchups, move choices
+    └── images/                  # Curated screenshots (committed, not gitignored)
+        ├── first_pokemon.png    # Key moments worth sharing
+        └── elite_four_victory.png
 ```
 
 ### Use Cases
@@ -612,24 +615,43 @@ matplotlib>=3.7.0  # For basic plots
 pandas>=2.0.0      # For data analysis
 ```
 
+### Data Management Strategy
+
+**Runtime artifacts vs. curated highlights:**
+
+- **Never commit**: `logs/` directory (session data, screenshots) - gitignored runtime artifacts
+- **Do commit**: Curated notebook outputs for sharing highlights and insights
+
+**Workflow for shareable notebooks**:
+1. Develop notebook using local `logs/` data (gitignored)
+2. For highlights notebooks, copy key screenshots into `notebooks/playthrough/images/`
+3. Update notebook to reference the copied images (not `../../logs/`)
+4. Clear all other notebook outputs before committing
+5. Commit the notebook code + curated images only
+
+This keeps the repo clean while allowing you to share interesting moments from your playthroughs.
+
 ### Best Practices
 
 - **Clean outputs before committing** - Large image outputs bloat git history
-- **Use relative paths** - `../logs/` not absolute paths
+- **Clear development notebook outputs** - Only commit outputs for curated highlights
+- **Use relative paths** - `../logs/` for local data, `./images/` for committed highlights
 - **Document assumptions** - What data format is expected
 - **Keep notebooks focused** - One clear purpose per notebook
 - **Make them aesthetically pleasing** - Optimize for human viewers
 - **Add markdown context** - Explain what each section does
+- **Separate runtime from highlights** - Local logs stay gitignored, curated content gets committed
 
 ### Future Enhancement Checklist
 
 When ready to add notebooks:
-- [ ] Create `notebooks/` directory structure
+- [ ] Create `notebooks/` directory structure (analysis/, development/, playthrough/)
+- [ ] Create `notebooks/playthrough/images/` for curated screenshots
 - [ ] Add Jupyter dependencies to requirements.txt
-- [ ] Create `notebooks/README.md` with usage guide
-- [ ] Build `session_viewer.ipynb` as first notebook
-- [ ] Add `.ipynb_checkpoints/` to .gitignore
-- [ ] Document notebook workflow in this section
+- [ ] Create `notebooks/README.md` with usage guide and data management rules
+- [ ] Build `session_viewer.ipynb` as first notebook (uses `../logs/` data)
+- [ ] Add `.ipynb_checkpoints/` to .gitignore (already done)
+- [ ] Create example highlight with curated image workflow
 
 ---
 
