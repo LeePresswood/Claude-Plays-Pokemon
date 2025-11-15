@@ -313,3 +313,54 @@ class TestGameMemory:
         assert "stuck" in context.lower()
         assert "up" in context
         assert "different" in context.lower()
+
+    def test_session_id_generation(self):
+        """Should generate unique session ID on creation"""
+        from src.agent.memory import GameMemory
+
+        memory1 = GameMemory()
+        memory2 = GameMemory()
+
+        assert hasattr(memory1, 'session_id')
+        assert hasattr(memory2, 'session_id')
+        assert memory1.session_id != memory2.session_id
+        assert len(memory1.session_id) > 0
+
+    def test_session_id_in_saved_log(self):
+        """Should include session ID in saved session log"""
+        from src.agent.memory import GameMemory
+        from src.config import LOG_DIR
+        import json
+
+        memory = GameMemory()
+        session_id = memory.session_id
+        memory.add_action("a", "Test action")
+
+        filename = f"test_session_{session_id}.json"
+        filepath = LOG_DIR / filename
+
+        try:
+            memory.save_session_log(filename)
+
+            # Read the saved file and verify session_id is present
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+
+            assert "session_id" in data
+            assert data["session_id"] == session_id
+        finally:
+            filepath.unlink(missing_ok=True)
+
+    def test_get_session_info(self):
+        """Should return session info including ID and start time"""
+        from src.agent.memory import GameMemory
+
+        memory = GameMemory()
+        memory.add_action("a", "Test")
+
+        info = memory.get_session_info()
+
+        assert "session_id" in info
+        assert "session_start" in info
+        assert "total_actions" in info
+        assert info["total_actions"] == 1

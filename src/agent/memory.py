@@ -7,6 +7,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+import uuid
 from PIL import Image
 import imagehash
 from src.config import LOG_DIR
@@ -29,9 +30,23 @@ class GameMemory:
         self.session_start = datetime.now()
         self.session_log = []
 
+        # Generate unique session ID for easy reference
+        self.session_id = self._generate_session_id()
+
         # Stuck detection using perceptual hashing
         self.screenshot_hashes = deque(maxlen=5)  # Keep last 5 screenshot hashes
         self.stuck_threshold = 3  # Same screen 3+ times = stuck
+
+    def _generate_session_id(self) -> str:
+        """
+        Generate a unique session ID
+
+        Returns:
+            Unique session identifier (timestamp + short UUID)
+        """
+        timestamp = self.session_start.strftime("%Y%m%d_%H%M%S")
+        short_uuid = str(uuid.uuid4())[:8]
+        return f"{timestamp}_{short_uuid}"
 
     def add_action(self, button: str, reasoning: str, screenshot_path: str = None):
         """
@@ -96,6 +111,20 @@ class GameMemory:
             "button_distribution": button_counts
         }
 
+    def get_session_info(self) -> Dict[str, Any]:
+        """
+        Get session information including ID and stats
+
+        Returns:
+            Dict with session info
+        """
+        return {
+            "session_id": self.session_id,
+            "session_start": self.session_start.isoformat(),
+            "total_actions": len(self.session_log),
+            "duration_seconds": (datetime.now() - self.session_start).total_seconds()
+        }
+
     def save_session_log(self, filename: str = None):
         """
         Save the session log to a JSON file
@@ -112,6 +141,7 @@ class GameMemory:
         try:
             with open(filepath, 'w') as f:
                 json.dump({
+                    "session_id": self.session_id,
                     "session_start": self.session_start.isoformat(),
                     "session_end": datetime.now().isoformat(),
                     "stats": self.get_stats(),

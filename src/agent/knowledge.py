@@ -141,27 +141,27 @@ class KnowledgeBase:
         last_5 = recent_actions[-5:]
         buttons = [action['button'] for action in last_5]
 
+        # Pattern: Multiple movement attempts in same direction (check first before general "same button")
+        directional = ['up', 'down', 'left', 'right']
+        directional_presses = [b for b in buttons if b in directional]
+        if len(directional_presses) >= 3 and len(set(directional_presses)) == 1:
+            direction = directional_presses[0]
+            return f"repeated_{direction}_movement"
+
         # Pattern: Same button repeatedly
         if len(set(buttons)) == 1:
             button = buttons[0]
             return f"repeated_{button}_button"
-
-        # Pattern: Alternating two buttons
-        if len(set(buttons)) == 2 and len(buttons) >= 4:
-            unique_buttons = list(set(buttons))
-            return f"alternating_{unique_buttons[0]}_and_{unique_buttons[1]}"
 
         # Pattern: Multiple A presses (common when stuck in menus)
         a_count = buttons.count('a')
         if a_count >= 3:
             return "multiple_a_presses"
 
-        # Pattern: Multiple movement attempts in same direction
-        directional = ['up', 'down', 'left', 'right']
-        directional_presses = [b for b in buttons if b in directional]
-        if len(directional_presses) >= 3 and len(set(directional_presses)) == 1:
-            direction = directional_presses[0]
-            return f"repeated_{direction}_movement"
+        # Pattern: Alternating two buttons
+        if len(set(buttons)) == 2 and len(buttons) >= 4:
+            unique_buttons = list(set(buttons))
+            return f"alternating_{unique_buttons[0]}_and_{unique_buttons[1]}"
 
         return None
 
@@ -190,7 +190,7 @@ class KnowledgeBase:
         """
         if not self.current_stuck_pattern:
             logger.warning("Recorded unstuck but no stuck pattern was set")
-            return
+            return  # Early return - don't update any stats
 
         # Update stats
         self.knowledge["stats"]["total_unstuck_successes"] += 1

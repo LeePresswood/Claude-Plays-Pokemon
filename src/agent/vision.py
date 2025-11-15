@@ -48,15 +48,26 @@ For a single button:
   "reasoning": "I see a dialog box, pressing A to advance the text"
 }}
 
+IMPORTANT - Prefer multi-button sequences when possible:
+- Multi-button sequences are MORE EFFICIENT (fewer API calls, lower cost)
+- Each response incurs API overhead - minimize this by planning ahead
+- Walking across empty rooms: Use 3-5 movement buttons (e.g., ["up", "up", "up", "up"])
+- Navigating menus: Combine navigation + selection (e.g., ["down", "down", "a"])
+- Exiting areas: Plan the full path (e.g., ["down", "down", "right", "right"])
+
+When to use single buttons:
+- Dialog boxes (need to see text progression)
+- Battle decisions (each choice has unique consequences)
+- Complex menu interactions (PC, inventory management)
+- When unsure about the game state
+
 Strategy tips:
-- You can plan ahead up to {MAX_BUTTONS_PER_RESPONSE} buttons when traversing open areas
 - Press A to confirm and advance dialog
 - Press B to cancel or go back
 - Use directional buttons to move and navigate menus
 - Press Start to open the menu
 - Press Select to switch items (in some contexts)
-- Use multi-button sequences for simple movement (walking across rooms)
-- Use single buttons for complex situations (battles, menus, dialog)
+- Think ahead: Where do you want to be in 3-5 steps?
 
 Keep your reasoning brief. Focus on making progress in the game."""
 
@@ -86,6 +97,10 @@ Keep your reasoning brief. Focus on making progress in the game."""
             Dict with 'button' and 'reasoning' keys, or None if error
         """
         try:
+            # Crop to game screen only (remove UI chrome)
+            from src.emulator.capture import crop_to_game_screen
+            screenshot = crop_to_game_screen(screenshot)
+
             # Convert image to base64
             image_b64 = self.image_to_base64(screenshot)
 
@@ -236,6 +251,10 @@ Keep your reasoning brief. Focus on making progress in the game."""
             Dict with 'buttons' and 'reasoning' keys, or None if error
         """
         try:
+            # Crop to game screen only (remove UI chrome)
+            from src.emulator.capture import crop_to_game_screen
+            screenshot = crop_to_game_screen(screenshot)
+
             # Convert image to base64
             image_b64 = self.image_to_base64(screenshot)
 

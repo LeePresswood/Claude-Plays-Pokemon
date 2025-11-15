@@ -4,11 +4,48 @@ Screenshot capture from emulator window
 import pyautogui
 from PIL import Image, ImageGrab
 import pygetwindow as gw
-from typing import Optional
+from typing import Optional, Tuple
 import logging
 import sys
 
 logger = logging.getLogger(__name__)
+
+
+# mGBA window crop coordinates (determined empirically)
+# These remove the Windows title bar, menu bar, and decorative borders
+# leaving just the Game Boy screen at 2x scale (320x288 from original 160x144)
+MGBA_CROP_BOUNDS = (104, 133, 424, 421)  # (left, top, right, bottom)
+
+
+def crop_to_game_screen(image: Image.Image, crop_bounds: Tuple[int, int, int, int] = MGBA_CROP_BOUNDS) -> Image.Image:
+    """
+    Crop screenshot to just the game screen, removing UI chrome
+
+    This removes:
+    - Windows title bar and menu bar
+    - mGBA decorative borders
+    - Pokemon info panels on the sides
+    - Pink/red border frame
+
+    Args:
+        image: Full window screenshot
+        crop_bounds: Tuple of (left, top, right, bottom) coordinates
+
+    Returns:
+        Cropped image containing only the game screen
+    """
+    # If image is already close to game screen size, return as-is
+    if image.size[0] <= crop_bounds[2] - crop_bounds[0] + 10:
+        logger.debug(f"Image already game-screen sized ({image.size}), skipping crop")
+        return image
+
+    try:
+        cropped = image.crop(crop_bounds)
+        logger.debug(f"Cropped image from {image.size} to {cropped.size}")
+        return cropped
+    except Exception as e:
+        logger.warning(f"Failed to crop image: {e}, returning original")
+        return image
 
 
 class EmulatorCapture:
