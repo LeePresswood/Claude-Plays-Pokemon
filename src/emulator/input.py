@@ -5,7 +5,7 @@ import pyautogui
 import time
 import logging
 from typing import List
-from config import BUTTON_PRESS_DURATION, VALID_BUTTONS
+from src.config import BUTTON_PRESS_DURATION, VALID_BUTTONS
 
 logger = logging.getLogger(__name__)
 

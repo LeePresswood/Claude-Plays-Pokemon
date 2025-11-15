@@ -48,21 +48,23 @@ The AI has no direct access to game memory or state – it must rely entirely on
 
 ```
 claude-plays-pokemon/
-├── README.md
-├── requirements.txt
+├── README.md, QUICKSTART.md, CLAUDE.md
+├── requirements.txt, setup.py
 ├── .env.example
-├── config.py              # API keys, model selection, throttle settings
-├── main.py                # Main game loop
-├── emulator/
-│   ├── __init__.py
-│   ├── capture.py         # Screenshot capture from emulator
-│   └── input.py           # Button press execution
-├── agent/
-│   ├── __init__.py
-│   ├── vision.py          # Claude API interaction
-│   └── memory.py          # Game history tracking
-└── logs/
-    └── gameplay/          # Saved gameplay sessions
+├── src/                   # Main source code
+│   ├── __main__.py        # Entry point (python -m src)
+│   ├── config.py          # API keys, model selection, throttle settings
+│   ├── agent/
+│   │   ├── vision.py      # Claude API interaction
+│   │   └── memory.py      # Game history tracking
+│   └── emulator/
+│       ├── capture.py     # Screenshot capture from emulator
+│       └── input.py       # Button press execution
+├── tests/
+│   └── test_setup.py      # Setup validation
+├── prompts/
+│   └── town-descriptions/ # Strategic context for Claude
+└── logs/                  # Session logs and screenshots (gitignored)
 ```
 
 ---
@@ -235,7 +237,7 @@ source venv/bin/activate  # Mac/Linux
 1. **Test your setup first**
 
 ```bash
-python test_setup.py
+python -m tests.test_setup
 ```
 
 This will verify:
@@ -248,7 +250,7 @@ This will verify:
 2. **Start the game loop**
 
 ```bash
-python main.py
+python -m src
 ```
 
 The agent will:

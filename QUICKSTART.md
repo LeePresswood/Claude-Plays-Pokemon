@@ -50,7 +50,7 @@ ANTHROPIC_API_KEY=sk-ant-api03-your-actual-key-here
 ### 4. Test Your Setup
 
 ```bash
-python test_setup.py
+python -m tests.test_setup
 ```
 
 Expected output:
@@ -84,14 +84,14 @@ API Key              ✓ PASS
 Window Detection     ✓ PASS
 Screenshot           ✓ PASS
 ============================================================
-✓ All tests passed! You're ready to run main.py
+✓ All tests passed! You're ready to run the agent
 ============================================================
 ```
 
 ### 5. Run the Agent
 
 ```bash
-python main.py
+python -m src
 ```
 
 You should see:

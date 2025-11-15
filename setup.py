@@ -71,7 +71,8 @@ def main():
     print(f"\nNext steps:")
     print(f"1. Activate: {activate_cmd}")
     print(f"2. Edit .env and add your API key")
-    print(f"3. Test: python test_setup.py")
+    print(f"3. Test: python -m tests.test_setup")
+    print(f"4. Run: python -m src")
 
     return 0
 

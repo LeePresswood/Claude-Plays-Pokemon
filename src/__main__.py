@@ -8,11 +8,11 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from emulator.capture import EmulatorCapture
-from emulator.input import EmulatorInput
-from agent.vision import ClaudeVision
-from agent.memory import GameMemory
-from config import (
+from src.emulator.capture import EmulatorCapture
+from src.emulator.input import EmulatorInput
+from src.agent.vision import ClaudeVision
+from src.agent.memory import GameMemory
+from src.config import (
     ACTION_DELAY,
     MAX_ACTIONS_PER_SESSION,
     WARN_COST_THRESHOLD,

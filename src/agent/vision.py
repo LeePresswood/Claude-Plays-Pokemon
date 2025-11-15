@@ -7,7 +7,7 @@ import base64
 import io
 import logging
 from typing import Optional, Dict, Any
-from config import ANTHROPIC_API_KEY, MODEL, MAX_TOKENS, VALID_BUTTONS
+from src.config import ANTHROPIC_API_KEY, MODEL, MAX_TOKENS, VALID_BUTTONS
 
 logger = logging.getLogger(__name__)
 

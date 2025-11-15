@@ -2,8 +2,8 @@
 Test script to verify setup before running the full game loop
 """
 import logging
-from emulator.capture import EmulatorCapture
-from emulator.input import EmulatorInput
+from src.emulator.capture import EmulatorCapture
+from src.emulator.input import EmulatorInput
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ def test_api_key():
     print("=" * 60)
 
     try:
-        from config import ANTHROPIC_API_KEY
+        from src.config import ANTHROPIC_API_KEY
         if ANTHROPIC_API_KEY and len(ANTHROPIC_API_KEY) > 0:
             print(f"✓ API key found (length: {len(ANTHROPIC_API_KEY)})")
             return True
