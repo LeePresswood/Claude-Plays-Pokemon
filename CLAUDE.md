@@ -34,8 +34,14 @@ claude-plays-pokemon/
 │   └── emulator/
 │       ├── capture.py   # Screenshot capture (pyautogui + pygetwindow)
 │       └── input.py     # Keyboard automation
-├── tests/
-│   └── test_setup.py    # Setup validation
+├── tests/               # Unit and integration tests
+│   ├── test_setup.py    # Setup validation
+│   ├── test_agent.py    # Agent unit tests
+│   └── test_emulator.py # Emulator unit tests
+├── notebooks/           # Jupyter notebooks for analysis (future)
+│   ├── analysis/        # Session viewing, metrics
+│   ├── development/     # Prompt testing, debugging
+│   └── playthrough/     # Highlights, visualizations
 ├── prompts/
 │   └── town-descriptions/  # Strategic context for Claude
 └── logs/                # Session logs and screenshots (gitignored)
@@ -519,6 +525,116 @@ See requirements.txt:
 - No save state management built-in (use emulator saves)
 - No strategic planning beyond recent history (last 5-10 actions)
 
+## Jupyter Notebooks for Analysis
+
+**Once gameplay sessions generate data, use Jupyter notebooks to analyze and visualize the AI's performance.** This is a recommended workflow from Anthropic's Claude Code best practices - notebooks provide an excellent way to explore session logs, understand decision patterns, and create shareable visualizations.
+
+### When to Create Notebooks
+
+**Proactive reminder for Claude**: When the user has run gameplay sessions and accumulated logs, suggest creating notebooks to:
+- Visualize session data with screenshots and decisions
+- Analyze performance metrics and patterns
+- Debug issues with interactive exploration
+- Create presentation-ready highlights
+
+### Recommended Structure
+
+Following the documentation organization rule, notebooks should live in a dedicated directory:
+
+```
+notebooks/
+├── README.md                    # Notebook usage guide
+├── analysis/
+│   ├── session_viewer.ipynb    # Browse sessions with screenshots
+│   ├── performance_stats.ipynb # Button patterns, API costs
+│   └── exploration_map.ipynb   # Movement patterns, areas visited
+├── development/
+│   ├── prompt_testing.ipynb    # Test vision prompts interactively
+│   ├── stuck_detection.ipynb   # Debug/tune stuck state logic
+│   └── vision_api_test.ipynb   # Test API with sample screenshots
+└── playthrough/
+    ├── highlights.ipynb         # Curated moments from runs
+    └── battle_analysis.ipynb    # Type matchups, move choices
+```
+
+### Use Cases
+
+**Analysis & Visualization**:
+- Session replay viewer - chronological screenshots with decisions overlaid
+- Performance metrics - buttons pressed over time, decision patterns
+- Exploration analysis - which areas visited, movement heatmaps
+- Cost analysis - API usage, tokens per decision, cost per milestone
+
+**Documentation & Sharing**:
+- Playthrough highlights - key moments with screenshots
+- Learning insights - what strategies worked/didn't work
+- Battle analysis - type matchup decisions, move effectiveness
+- Progress tracking - badges earned, Pokemon caught, items found
+
+**Development & Debugging**:
+- Test vision API with sample screenshots interactively
+- Prototype new prompts and see results immediately
+- Debug stuck state detection with real session data
+- Visualize game state memory and history patterns
+
+### Working with Claude on Notebooks
+
+**Recommended workflow**: Open Claude Code and a .ipynb file side-by-side in VS Code. Claude can:
+- Read notebook outputs including images
+- Interpret data visualizations
+- Add new cells with analysis code
+- Clean up and improve aesthetics
+
+**Useful prompts**:
+> "Create a session viewer notebook that loads logs/session_*.json and displays screenshots with decision overlays"
+
+> "Make this notebook aesthetically pleasing for sharing with colleagues" (reminds Claude to optimize for human viewing)
+
+> "Add visualizations showing button press patterns over time from the session logs"
+
+> "Debug why the agent got stuck - load the session and show me the last 20 actions with screenshots"
+
+### Integration with Session Logs
+
+Notebooks should work seamlessly with the logging system:
+- Read `logs/session_*.json` for structured data
+- Load `logs/screenshots/*.png` for visuals
+- Parse `logs/game_*.log` for detailed traces
+- Combine data sources for comprehensive analysis
+
+### Dependencies
+
+Add to requirements.txt when creating notebooks:
+```
+jupyter>=1.0.0
+notebook>=7.0.0
+matplotlib>=3.7.0  # For basic plots
+pandas>=2.0.0      # For data analysis
+```
+
+### Best Practices
+
+- **Clean outputs before committing** - Large image outputs bloat git history
+- **Use relative paths** - `../logs/` not absolute paths
+- **Document assumptions** - What data format is expected
+- **Keep notebooks focused** - One clear purpose per notebook
+- **Make them aesthetically pleasing** - Optimize for human viewers
+- **Add markdown context** - Explain what each section does
+
+### Future Enhancement Checklist
+
+When ready to add notebooks:
+- [ ] Create `notebooks/` directory structure
+- [ ] Add Jupyter dependencies to requirements.txt
+- [ ] Create `notebooks/README.md` with usage guide
+- [ ] Build `session_viewer.ipynb` as first notebook
+- [ ] Add `.ipynb_checkpoints/` to .gitignore
+- [ ] Document notebook workflow in this section
+
+---
+
+**Remember**: Notebooks are powerful for post-run analysis. Once session data exists, Claude should proactively suggest creating notebooks to help understand the AI's gameplay patterns.
+
 ## Troubleshooting
 
 ### "ANTHROPIC_API_KEY not set"
@@ -546,6 +662,7 @@ See requirements.txt:
 ## Future Enhancements
 
 **Short-term** (good first tasks):
+- **Jupyter notebooks** - Create session viewer after first gameplay runs
 - OCR for location detection
 - Auto-load town descriptions when location changes
 - Detect stuck states (repeated actions)
@@ -556,12 +673,14 @@ See requirements.txt:
 - Knowledge base (type matchups, moves, items)
 - Checkpoint system
 - Parallel strategy testing
+- **Analysis notebooks** - Performance metrics, exploration heatmaps
 
 **Long-term**:
 - Complete Elite Four playthrough
 - Speedrun optimization
 - Alternative challenges (Nuzlocke, monotype)
 - Video recording and highlights
+- **Playthrough highlights notebook** - Shareable visualization of best moments
 
 ## References
 
