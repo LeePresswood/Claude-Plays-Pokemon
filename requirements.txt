@@ -1,0 +1,15 @@
+# Claude Plays Pokemon - Python Dependencies
+
+# Anthropic API
+anthropic>=0.39.0
+
+# Environment variables from .env file
+python-dotenv>=1.0.0
+
+# Screen capture and window management
+pyautogui>=0.9.54
+pygetwindow>=0.0.9
+pillow>=10.0.0
+
+# For Windows window management
+pywin32>=306; sys_platform == 'win32'

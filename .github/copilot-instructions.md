@@ -1,188 +1,248 @@
-# MCPokemon - MCP Server for Autonomous Pokémon Red Gameplay
+# Claude Plays Pokemon - Autonomous AI Pokemon Player
 
-This is an experimental Model Context Protocol (MCP) server project designed to let an LLM play Pokémon Red autonomously. The project is currently in the concept and design phase with detailed documentation but no implementation yet.
+This is a Python-based autonomous agent that plays Pokémon Red using Claude's vision capabilities via the Anthropic API. The agent operates in a simple loop: screenshot → Claude decision → button press → repeat.
 
 **Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.**
 
 ## Current Project State
 
-**IMPORTANT**: This project is currently in the design/concept phase. There is NO source code, build system, dependencies, or runnable application yet. The repository contains only:
-- README.md (comprehensive project design and technical specifications)
-- LICENSE (Unlicense - public domain)
-- .gitignore (Node.js style, suggesting future Node.js/TypeScript implementation)
-- package-lock.json (empty, no dependencies - suggests npm was initialized but no packages installed)
+The project is fully implemented and ready to run. The repository contains:
+- **Python implementation**: Complete game loop with emulator integration
+- **Claude API integration**: Vision-based decision making using Claude Haiku
+- **Logging system**: Comprehensive session tracking and screenshot saving
+- **Test utilities**: Setup validation script
+- **Documentation**: README, QUICKSTART guide, and town descriptions for context
 
-## Maintaining These Instructions
+## Project Structure
 
-**CRITICAL**: These instructions must be updated as the project evolves through development phases. The current instructions reflect the design/concept phase state and will become outdated when implementation begins.
-
-### When to Update These Instructions
-
-**Immediately update when:**
-- First source code is added to the repository
-- Dependencies are added (package.json created, npm packages installed)
-- Build system is implemented (scripts, compilation, bundling)
-- Test framework is added
-- CI/CD workflows are created
-- MCP server implementation begins
-
-### Required Updates by Development Phase
-
-**Phase 1 - Initial Implementation:**
-- Remove all references to "design phase only" and "no runnable code"
-- Update "Current Project State" section with actual project structure
-- Add real build, test, and development commands
-- Update "Current Limitations" and "Commands That Appropriately Fail" sections
-- Add actual dependency information and project setup instructions
-
-**Phase 2 - MCP Server Development:**
-- Add MCP-specific development workflows and debugging guidance
-- Include emulator integration setup instructions
-- Add game state recognition validation procedures
-- Update architecture sections with actual implementation details
-
-**Phase 3 - Game Integration:**
-- Add Pokémon Red emulator setup and configuration guidance
-- Include image processing and state extraction validation
-- Add gameplay loop testing and debugging procedures
-- Update knowledge base integration instructions
-
-### Sections Requiring Regular Updates
-- **Current Project State**: Must reflect actual repository contents and capabilities
-- **Current Limitations**: Remove limitations as they're resolved through implementation
-- **Validated Commands**: Add new working commands, remove placeholder failures
-- **Commands That Appropriately Fail**: Update as functionality is implemented
-- **Development Guidelines**: Evolve from "future implementation" to actual practices
-
-### Responsibility for Updates
-When making significant changes to the project structure or adding new functionality, **always update these instructions** as part of the same PR. These instructions are living documentation that should accurately reflect the current state and capabilities of the project.
+```
+claude-plays-pokemon/
+├── main.py              # Main game loop - start here
+├── config.py            # Configuration (API key, model, throttling)
+├── test_setup.py        # Setup validation script
+├── requirements.txt     # Python dependencies
+├── emulator/
+│   ├── capture.py       # Screenshot capture via pyautogui
+│   └── input.py         # Button press execution
+├── agent/
+│   ├── vision.py        # Claude API integration
+│   └── memory.py        # Game history tracking
+├── prompts/
+│   └── town-descriptions/  # Strategic context for Claude
+└── logs/                # Session logs and screenshots
+```
 
 ## Working Effectively
 
-### Understanding the Project
-- **Start by reading README.md thoroughly** - it contains the complete project vision, technical architecture, and implementation strategy
-- The README.md covers:
-  - Project goals and rationale for choosing Pokémon Red
-  - 5-phase milestone roadmap (from starter Pokémon to defeating Mewtwo)
-  - Technical considerations (context size, memory, knowledge injection, image recognition)
-  - 5-stage narration framework for debugging LLM reasoning
-  - Post-movement analysis and error correction strategies
+### Understanding the Architecture
 
-### Key Concepts to Understand
-- **State-based gameplay**: Pokémon Red is modeled as finite state transitions suitable for LLM decision-making
-- **5-stage narration**: Perception → Knowledge Injection → Task Framing → Decision Path → Hallucination Risks
-- **Short decision windows**: Plan 10 moves at 0.25s intervals to minimize hallucination risk
-- **Knowledge grounding**: Use Bulbapedia and canonical sources to correct LLM assumptions
-- **Error detection and backtracking**: Compare game states before/after moves to detect and correct mistakes
+**Simple Loop Design:**
+1. Capture screenshot from emulator window (mGBA)
+2. Send to Claude via Anthropic API with recent history
+3. Claude returns JSON with button press + reasoning
+4. Execute button press in emulator
+5. Repeat every 2 seconds (configurable)
 
-## Development Guidelines (For Future Implementation)
+**Key Design Principles:**
+- **Vision-only**: No game memory access, only screenshots
+- **Short decision windows**: Claude decides one button at a time
+- **Cost-effective**: Uses Claude Haiku (~$1/1000 actions)
+- **Observable**: All decisions logged with screenshots
+- **Safe**: Budget limits and throttling built-in
 
-### When Code is Added
-- Based on .gitignore, this will likely be a Node.js/TypeScript project
-- Expect dependencies like emulator libraries, image processing tools, and MCP framework
-- Follow the technical architecture outlined in README.md sections on "Context Size & Planning" and "Memory & Persistence"
+### Important Files
 
-### Architecture Expectations
-- **MCP Server**: Will implement Model Context Protocol for LLM integration
-- **Game Emulator Integration**: Interface with Pokémon Red emulator for input/output
-- **Image Recognition**: Process game screenshots to extract state information  
-- **State Tracking**: Persistent memory for inventory, team, badges, location
-- **Knowledge Base**: Integration with Pokémon knowledge sources (potentially Bulbapedia)
+**config.py** - Central configuration:
+- `ANTHROPIC_API_KEY`: Loaded from environment variable
+- `MODEL`: Claude Haiku by default
+- `ACTION_DELAY`: 2 seconds between actions
+- `MAX_ACTIONS_PER_SESSION`: 1000 action limit
+- `VALID_BUTTONS`: a, b, start, select, up, down, left, right
 
-### Validation Requirements
-- **When implementation begins**: Always test the complete gameplay loop described in README.md
-- **State transition validation**: Ensure moves produce expected game state changes
-- **Error handling**: Implement the post-movement analysis framework from README.md
-- **Knowledge accuracy**: Validate against canonical Pokémon Red sources
+**agent/vision.py** - Claude integration:
+- `ClaudeVision.get_action()`: Main API call
+- System prompt teaches Claude how to play Pokemon
+- Expects JSON response: `{"button": "a", "reasoning": "..."}`
+- Fallback parser for non-JSON responses
 
-## Common Tasks
+**emulator/capture.py** - Screenshot capture:
+- Uses `pygetwindow` to find emulator window
+- Uses `pyautogui` to capture screenshots
+- Window title must contain "mGBA" (configurable)
 
-### Current State Tasks
+**emulator/input.py** - Button execution:
+- Maps Pokemon buttons to keyboard keys
+- Default: Z=A, X=B, Enter=Start, Backspace=Select
+- Sends keypresses to active window
+
+## Common Development Tasks
+
+### Testing and Running
+
 ```bash
-# View project documentation
-cat README.md
+# Install dependencies
+pip install -r requirements.txt
 
-# Check repository structure  
-ls -la
-find . -type f -name "*.md" -o -name "*.json" -o -name "*.js" -o -name "*.py" -o -name "*.ts"
+# Set API key (required)
+export ANTHROPIC_API_KEY="your-key-here"  # Linux/Mac
+$env:ANTHROPIC_API_KEY="your-key-here"    # Windows PowerShell
 
-# Understand project scope
-grep -n "Phase [1-5]" README.md
-grep -n "Technical Considerations" README.md
+# Validate setup before running
+python test_setup.py
+
+# Run the agent
+python main.py
 ```
 
-### Future Development Tasks (When Code Exists)
-```bash
-# Expected build process (not yet implemented)
-npm install          # Install dependencies - currently fails: no package.json
-npm run build        # Build the MCP server
-npm run test         # Run test suite
-npm run dev          # Development mode
+### Configuration Changes
 
-# Available development tools:
-node --version       # Node.js v20.19.4 available
-python --version     # Python 3.12.3 available
+```python
+# In config.py:
+ACTION_DELAY = 2.0              # Speed up/slow down gameplay
+MAX_ACTIONS_PER_SESSION = 1000  # Budget control
+MODEL = "claude-3-5-haiku-20241022"  # Change model
+SAVE_SCREENSHOTS = True         # Toggle screenshot saving
 ```
 
-### Repository Contents Reference
+### Debugging
+
 ```bash
-# Current repository structure:
-.
-├── .git/
-├── .github/
-│   └── copilot-instructions.md
-├── .gitignore       # Node.js style gitignore
-├── LICENSE          # Unlicense (public domain)
-├── package-lock.json # Empty lockfile (88 bytes, no dependencies)
-└── README.md        # Complete project specification (11,575 bytes)
+# Check logs
+tail -f logs/game_*.log
+
+# View screenshots
+ls -lt logs/screenshots/
+
+# Check session statistics
+cat logs/session_*.json | jq '.stats'
 ```
 
-## Important Notes
+### Code Modifications
+
+**To change button mappings** (if using different emulator):
+```python
+# In emulator/input.py - EmulatorInput.BUTTON_MAP
+BUTTON_MAP = {
+    "a": "z",      # Change to your emulator's key
+    "b": "x",
+    # ... etc
+}
+```
+
+**To improve Claude's decisions**:
+```python
+# In agent/vision.py - ClaudeVision.system_prompt
+# Modify the system prompt to add strategies, type matchups, etc.
+```
+
+**To add location context**:
+```python
+# Load town descriptions from prompts/town-descriptions/
+# Include in recent_history when calling vision.get_action()
+```
+
+## Current Capabilities
+
+### What Works
+- ✅ Window detection and screenshot capture
+- ✅ Claude API integration with vision
+- ✅ Button press execution
+- ✅ Game history tracking
+- ✅ Session logging and statistics
+- ✅ Cost tracking and budget limits
+- ✅ Graceful shutdown (Ctrl+C)
 
 ### Current Limitations
-- **No runnable code**: Project is in design phase only
-- **No build/test system**: Nothing to compile or execute yet  
-- **No dependencies**: Empty package-lock.json, no package.json, no actual dependencies
-- **No CI/CD**: No GitHub Actions or automated testing
+- ⚠️ No game state recognition (purely visual)
+- ⚠️ No strategic planning beyond recent history
+- ⚠️ No battle strategy (just follows Claude's judgment)
+- ⚠️ No save state management
+- ⚠️ No automatic recovery from stuck states
 
-### Validated Commands (Working)
-```bash
-# These commands have been tested and work correctly:
-cat README.md                    # ✓ Shows complete project documentation
-ls -la                          # ✓ Lists repository contents
-find . -name "*.md"             # ✓ Finds documentation files
-grep -n "Phase [1-5]" README.md # ✓ Shows project milestones
-grep -n "Technical Considerations" README.md # ✓ Shows architecture section
-node --version                  # ✓ Shows Node.js v20.19.4
-python --version                # ✓ Shows Python 3.12.3
-```
+## Future Enhancement Ideas
 
-### Commands That Appropriately Fail
-```bash
-# These commands fail as expected (no implementation yet):
-npm install                     # ✗ Error: no package.json file
-npm run build                   # ✗ No package.json with scripts
-npm run test                    # ✗ No test infrastructure
-```
+### Short-term Improvements
+1. **Location detection**: OCR to read town names from screenshots
+2. **Context loading**: Auto-load town descriptions when location detected
+3. **Stuck detection**: Detect repeated actions and trigger recovery
+4. **Battle focus**: Enhanced prompts for battle situations
 
-### Future Development Priorities
-1. **MCP Server Framework**: Implement basic MCP protocol handling
-2. **Emulator Interface**: Connect to Pokémon Red emulator (likely VBA or similar)
-3. **State Recognition**: Image processing to extract game state from screenshots
-4. **Decision Engine**: Implement the 5-stage narration framework
-5. **Knowledge Integration**: Connect to canonical Pokémon knowledge sources
+### Medium-term Features
+1. **Hybrid model approach**: Haiku for movement, Sonnet for battles
+2. **Knowledge base**: Type matchups, move lists, item effects
+3. **Checkpoint system**: Save progress at milestones
+4. **Multi-run comparison**: Run multiple strategies in parallel
 
-### Debugging and Validation Strategy
-- Follow the 5-stage narration pattern outlined in README.md for all LLM decision loops
-- Implement post-movement analysis to detect reasoning errors
-- Use structured state tracking to maintain game progress across sessions
-- Ground decisions in canonical knowledge sources to reduce hallucinations
+### Long-term Goals
+1. **Complete playthrough**: Successfully beat Elite Four
+2. **Speedrun optimization**: Find efficient routing
+3. **Different strategies**: Nuzlocke, monotype runs, etc.
+4. **Video recording**: Create highlight reels
+
+## Dependencies
+
+**Python packages** (see requirements.txt):
+- `anthropic>=0.39.0` - Claude API client
+- `pyautogui>=0.9.54` - Screenshot and keyboard automation
+- `pygetwindow>=0.0.9` - Window management
+- `pillow>=10.0.0` - Image processing
+- `pywin32>=306` - Windows-specific window management
+
+**External requirements**:
+- Python 3.9+
+- mGBA emulator (or compatible)
+- Pokemon Red ROM
+- Anthropic API key
+
+## Cost Management
+
+**Default settings** (2-second delay, Haiku):
+- ~30 actions/minute
+- ~1800 actions/hour
+- ~$1.80/hour
+- ~$1/session (1000 action limit)
+
+**To reduce costs**:
+- Increase `ACTION_DELAY` in config.py
+- Lower `MAX_ACTIONS_PER_SESSION`
+- Set daily budget limits in Anthropic console
+- Use local testing before live runs
+
+## Troubleshooting
+
+**"Could not find emulator window"**:
+- Check window title contains "mGBA"
+- Modify `window_title` parameter in main.py
+- Try `python test_setup.py` to debug
+
+**"API key not set"**:
+- Verify environment variable: `echo $ANTHROPIC_API_KEY`
+- Check for typos in variable name
+- Try setting in same terminal session where running script
+
+**Button presses not working**:
+- Verify emulator keyboard mappings
+- Check emulator window is active/focused
+- Modify `BUTTON_MAP` in emulator/input.py if needed
+
+**High API costs**:
+- Check `ACTION_DELAY` is not too low
+- Verify `MAX_ACTIONS_PER_SESSION` limit is active
+- Monitor usage in Anthropic console
+- Consider increasing delay or using caching
 
 ## References
 
-- **Primary Documentation**: README.md contains the complete technical specification
-- **Inspiration**: Twitch Plays Pokémon as proof-of-concept for crowd-sourced discrete state progression
-- **Knowledge Source**: Bulbapedia for canonical Pokémon Red information
-- **Target Game**: Pokémon Red (Game Boy, 1996) - chosen for state-based nature and lack of time pressure
+- **Main Documentation**: README.md - comprehensive project overview
+- **Quick Start**: QUICKSTART.md - 5-minute setup guide
+- **Town Context**: prompts/town-descriptions/ - strategic info
+- **Anthropic Docs**: https://docs.anthropic.com/
+- **mGBA**: https://mgba.io/
 
-**Remember**: This project is currently conceptual. When contributing code, ensure it aligns with the comprehensive design framework already established in README.md.
+## Remember
+
+- This is a simple loop architecture, not an MCP server
+- Claude has NO memory between API calls - context must be explicit
+- Vision-only means Claude sees what a human sees
+- Cost control is important - always set limits
+- Logs are your friend for debugging decisions
